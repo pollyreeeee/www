@@ -15,6 +15,62 @@ enum class TransportSpeed : int
     Slow, // медленный
     Unknown
 };
+// Реализация паттерна "Стратегия"
+
+enum class TravelModeEnum : int
+{
+    Drive,
+    Take,
+    Ride,
+
+    // Новая стратегия для варианта 2 (передвигаться пешком)
+    Walk,
+
+    None
+};
+
+class TravelStrategy
+{
+public:
+    virtual ~TravelStrategy() {}
+    virtual void Travel() = 0;
+};
+
+class DriveTravelStrategy : public TravelStrategy
+{
+    void Travel() { cout << "Driving the car..."; }
+};
+
+class TakeTravelStrategy : public TravelStrategy
+{
+    void Travel(){ cout << "Taking the trolleybus..."; }
+};
+
+class RideTravelStrategy : public TravelStrategy
+{
+    void Travel() { cout << "Riding the bicycle..."; }
+};
+
+class WalkTravelStrategy : public TravelStrategy
+{
+    void Travel() { cout << "Walking to the destination..."; }
+};
+
+// Фабричный метод для создания стратегий
+TravelStrategy *CreateTravelStrategy(TravelModeEnum travelMode)
+{
+  switch(travelMode)
+  {
+    case TravelModeEnum::Drive: return new DriveTravelStrategy;
+    case TravelModeEnum::Take: return new TakeTravelStrategy;
+    case TravelModeEnum::Ride: return new RideTravelStrategy;
+
+    // Новый способ (для варианта 2)
+    case TravelModeEnum::Walk: return new WalkTravelStrategy;
+
+    default: return nullptr;
+  }
+}
 
 class Transport // Родительский (базовый) класс
 {
@@ -22,6 +78,33 @@ private: // "Закрытые" компоненты
     TransportSpeed Speed;
     double Weight;
 
+    TravelStrategy *TravelMode;
+
+    void DoTravelUsingStrategy()
+    {
+      if(TravelMode == nullptr)
+      {
+        // Способ съедания не задан, ничего не делаем
+        cout << "No travel strategy set!";
+        return;
+      }
+      else
+      {
+        // Съесть заданным способом
+        TravelMode->Travel();
+      }
+    }
+    void DetectGoodOrNot()
+    {
+      if(IsElectric())
+      {
+          cout << "Electric";
+      }
+      else
+      {
+          cout << "Not electric";
+      }
+    }
 protected: // "Защищенные" компоненты
     bool Electric;
 
@@ -33,77 +116,84 @@ public: // "Открытые" компоненты, определяющие и�
         Electric = static_cast<bool>(rand()%2);
     }
 
-    virtual ~Transport() {}
+    virtual ~Transport() // Деструктор (объявлен виртуальным, чтобы обеспечить корректное уничтожение унаследованных классов)
+    {
+      if(TravelMode != nullptr) delete TravelMode;
+    }
 
+    // Функция с реализацией
     bool IsElectric() const { return Electric; }
 
+    // Функция с реализацией
     TransportSpeed GetSpeed() const { return Speed; }
 
+    // Функция с реализацией
     double GetWeight() const { return Weight; }
 
-    virtual void Service()
+    virtual void PrintType() = 0;
+
+    virtual void FuelUp() = 0;
+
+    // Функция с реализацией
+    void Travel()
     {
-        if(IsElectric())
-        {
-            cout << "Servicing electric transport... ";
-        }
-        else
-        {
-            cout << "Servicing not electric transport... ";
-        }
+        // 1. Вывести название транспорта
+        PrintType();
+        cout << " : ";
+
+        // 2. Определить, хороший транспорт или нет
+        DetectGoodOrNot();
+        cout << " : ";
+
+        // 2.1 Заправить топливом
+        FuelUp();
+        cout << " : ";
+
+        // 3. Если транспорт готов, начать движение с использованием выбранной стратегии
+        DoTravelUsingStrategy();
+
+        // 4. Конец алгоритма
+        cout << endl;
     }
+    void SetTravelStrategy(TravelStrategy *travelMode) { TravelMode = travelMode; }
 };
 
-class Car : public Transport // Класс-наследник
+class Car : public Transport // Класс-наследник "Яблоко"
 {
 public:
     Car();
     ~Car() {}
 
-    void Service() override;
+    void PrintType() { cout << "Car"; }
+    void FuelUp() { cout << "Refueling with gasoline"; }
 };
+
 
 // Реализация конструктора
 Car::Car() : Transport(TransportSpeed::Fast)
 {
-
+  // Определить стратегию съедания по умолчанию для яблока (вариант 1)
+  SetTravelStrategy(CreateTravelStrategy(TravelModeEnum::Drive));
 }
-
-void Car::Service()
-{
-    Transport::Service();
-    cout << "Car is servicing..." << endl;
-}
-
-class Trolleybus : public Transport // Класс-наследник
+class Trolleybus : public Transport // Класс-наследник "Киви"
 {
 public:
-    Trolleybus() : Transport(TransportSpeed::Medium) { }
+    Trolleybus() : Transport(TransportSpeed::Medium) { SetTravelStrategy(CreateTravelStrategy(TravelModeEnum::Take)); }
     ~Trolleybus() {}
 
-    void Service() override;
+    void PrintType() { cout << "Trolleybus"; }
+    void FuelUp() { cout << "Refueling with gasoline is not necessary"; }
 };
 
-void Trolleybus::Service()
-{
-    Transport::Service();
-    cout << "Trolleybus is servicing..." << endl;
-}
-
-class Bicycle : public Transport // Класс-наследник
+class Bicycle : public Transport // Класс-наследник "Апельсин"
 {
 public:
-    Bicycle() : Transport(TransportSpeed::Slow) { }
+    Bicycle() : Transport(TransportSpeed::Slow) { SetTravelStrategy(CreateTravelStrategy(TravelModeEnum::Ride)); }
     ~Bicycle() {}
 
-    void Service();
+    void PrintType() { cout << "Bicycle"; }
+    void FuelUp() { cout << "Refueling with gasoline"; }
 };
-
-void Bicycle::Service()
-{
-    Transport::Service();
-    cout << "Bicycle is servicing..." << endl;
-}
 
 // Реализация паттерна "Фабричный метод" для создания фруктов
 
@@ -135,7 +225,7 @@ Transport *CreateTransport(TransportType type)
     return newTransport;
 }
 
-// Декоратор итератора для выделения спорта по опасности
+// Декоратор итератора для выделения транспорта по скорости
 
 class TransportSpeedDecorator : public IteratorDecorator<class Transport*>
 {
@@ -194,50 +284,52 @@ public:
         while(!It->IsDone() && It->GetCurrent()->IsElectric() != TargetElectric);
     }
 };
+
 // Функция, позволяющая выполнить любой транспорт из любого контейнера
 // вне зависимости от его внутреннего устройства
-void ServiceEmAll(Iterator<Transport*> *it)
+void TravelEmAll(Iterator<Transport*> *it)
 {
     for(it->First(); !it->IsDone(); it->Next())
     {
         Transport *currentTransport = it->GetCurrent();
-        currentTransport->Service();
+        currentTransport->Travel();
     }
 }
 
 // Функция, позволяющая выполнить только електрический транспорт
 // (демонстрация решения проблемы "в лоб")
-void ServiceEmAllElectric(Iterator<Transport*> *it)
+void TravelEmAllElectric(Iterator<Transport*> *it)
 {
     for(it->First(); !it->IsDone(); it->Next())
     {
         Transport *currentTransport = it->GetCurrent();
         if(!currentTransport->IsElectric()) continue;
 
-        currentTransport->Service();
+        currentTransport->Travel();
     }
 }
 
 // Функция, позволяющая выполнить только медленный транспорт
 // (демонстрация решения проблемы "в лоб")
 
-void ServiceEmAllSlow(Iterator<Transport*> *it)
+void TravelEmAllSlow(Iterator<Transport*> *it)
 {
     for(it->First(); !it->IsDone(); it->Next())
     {
         Transport *currentTransport = it->GetCurrent();
         if(currentTransport->GetSpeed() != TransportSpeed::Slow) continue;
 
-        currentTransport->Service();
+        currentTransport->Travel();
     }
 }
 
 int main()
 {
     setlocale(LC_ALL, "Russian");
+
     size_t N = 10;
 
-    // Массив фруктов
+    // Массив транспорта
 
     ArrayClass<Transport*> transportArray;
     for(size_t i=0; i<N; i++)
@@ -245,6 +337,9 @@ int main()
         int transport_num = rand()%3+1; // Число от 1 до 3
         TransportType transport_type = static_cast<TransportType>(transport_num);
         Transport *newTransport = CreateTransport(transport_type);
+        // Задать способ съедания на этапе создания (вариант 2)
+        // newTransport->SetTravelStrategy(CreateTravelStrategy(TravelModeEnum::Walk));
+
         transportArray.Add(newTransport);
     }
 
@@ -258,49 +353,49 @@ int main()
         int transport_num = rand()%3+1; // Число от 1 до 3
         TransportType transport_type = static_cast<TransportType>(transport_num);
         Transport *newTransport = CreateTransport(transport_type);
-        transportVector.push_back(newTransport); // Добавить новый спорт в конец списка
+        transportVector.push_back(newTransport); // Добавить transport спорт в конец списка
     }
 
     wcout << L"Размер списка транспорта: " << transportVector.size() << endl;
 
     // Обход в простом цикле
-    cout << endl << "Service all in a simple loop:" << endl;
+    cout << endl << "Travel all in a simple loop:" << endl;
     for(size_t i=0; i<transportArray.Size(); i++)
     {
         Transport *currentTransport = transportArray[i];
-        currentTransport->Service();
+        currentTransport->Travel();
     }
 
     // Обход всех элементов при помощи итератора
-    cout << endl << "Service all using iterator:" << endl;
+    cout << endl << "Travel all using iterator:" << endl;
     Iterator<Transport*> *allIt = transportArray.GetIterator();
-    ServiceEmAll(allIt);
+    TravelEmAll(allIt);
     delete allIt;
 
     // Обход всех електрических видов транспорта
-    cout << endl << "Service all electric using iterator:" << endl;
+    cout << endl << "Travel all electric using iterator:" << endl;
     Iterator<Transport*> *electricIt = new TransportElectricDecorator(transportArray.GetIterator(), true);
-    ServiceEmAll(electricIt);
+    TravelEmAll(electricIt);
     delete electricIt;
 
     // Обход всех быстрых видов транспорта
-    cout << endl << "Service all fast using iterator:" << endl;
+    cout << endl << "Travel all fast using iterator:" << endl;
     Iterator<Transport*> *fastIt = new TransportSpeedDecorator(transportArray.GetIterator(), TransportSpeed::Fast);
-    ServiceEmAll(fastIt);
+    TravelEmAll(fastIt);
     delete fastIt;
 
     // Обход всех електрических быстрых по скорости транспортов
-    cout << endl << "Service all electric medium using iterator:" << endl;
+    cout << endl << "Travel all electric medium using iterator:" << endl;
     Iterator<Transport*> *goodMediumIt =
         new TransportElectricDecorator(new TransportSpeedDecorator(transportArray.GetIterator(), TransportSpeed::Medium), true);
-    ServiceEmAll(goodMediumIt);
+    TravelEmAll(goodMediumIt);
     delete goodMediumIt;
 
     // Демонстрация работы адаптера
-    cout << endl << "Service all electric fast using adapted iterator (another container):" << endl;
+    cout << endl << "Travel all not electric fast using adapted iterator (another container):" << endl;
     Iterator<Transport*> *adaptedIt = new ConstIteratorAdapter<std::list<Transport*>, Transport*>(&transportVector);
     Iterator<Transport*> *adaptedFastIt = new TransportElectricDecorator(new TransportSpeedDecorator(adaptedIt, TransportSpeed::Fast), false);
-    ServiceEmAll(adaptedFastIt);
+    TravelEmAll(adaptedFastIt);
     delete adaptedFastIt;
     // adaptedIt удалять не надо, так как он удаляется внутри декоратора adaptedDangerousIt
 

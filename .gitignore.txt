@@ -1,0 +1,4 @@
+bin/
+obj/
+FruitTest_01.depend
+FruitTest_01.layout
